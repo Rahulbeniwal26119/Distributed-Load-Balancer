@@ -190,3 +190,20 @@ docker compose logs [service-name]
 - FastAPI for the web framework
 - Redis for distributed caching
 - Docker for containerization
+
+### Verifying Load Balancing
+
+To verify that requests are being distributed across instances:
+
+1. Make multiple requests:
+```bash
+for i in {1..10}; do curl http://localhost/limited_endpoint; done
+```
+
+2. Check the logs of each instance:
+```bash
+docker logs app-1
+docker logs app-2
+```
+
+You should see requests being distributed between both application instances.
