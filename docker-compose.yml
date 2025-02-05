@@ -1,0 +1,130 @@
+version: '3.8'
+
+networks:
+
+  redis-network:
+    name: redis-network
+    driver: bridge
+
+services:
+  app-1:
+    container_name: app-1
+    build:
+      context: .
+    ports:
+      - "8001:8000"
+    environment:
+      - SENTINEL_HOSTS=sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      - REDIS_MASTER=redis-master
+      - REDIS_PASSWORD=master
+      - RATE_LIMIT=10
+      - TIME_WINDOW=60
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+      - sentinel-1
+      - sentinel-2
+      - sentinel-3
+    networks:
+      - redis-network
+
+  app-2:
+    container_name: app-2
+    build:
+      context: .
+    ports:
+      - "8002:8000"
+    environment:
+      - SENTINEL_HOSTS=sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      - REDIS_MASTER=redis-master
+      - REDIS_PASSWORD=master
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+      - sentinel-1
+      - sentinel-2
+      - sentinel-3
+    networks:
+      - redis-network
+  redis-master:
+    container_name: redis-master
+    hostname: redis-master
+    image: redis:latest
+    command: redis-server --requirepass master
+    ports:
+      - "6379:6379"
+    networks:
+      - redis-network
+  redis-slave-1:
+    container_name: redis-slave-1
+    hostname: redis-slave-1
+    image: redis:latest
+    command: redis-server --requirepass redis-slave-1 --slaveof redis-master 6379 --masterauth master
+    ports:
+      - "6380:6380"
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+  redis-slave-2:
+    container_name: redis-slave-2
+    hostname: redis-slave-2
+    image: redis:latest
+    command: redis-server --requirepass redis-slave-2 --slaveof redis-master 6379 --masterauth master
+    ports:
+      - "6381:6381"
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+  sentinel-1:
+    container_name: sentinel-1
+    image: redis:latest
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+    networks:
+      - redis-network
+  sentinel-2:
+    container_name: sentinel-2
+    image: redis:latest
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+    networks:
+      - redis-network
+  sentinel-3:
+    container_name: sentinel-3
+    image: redis:latest
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+    networks:
+      - redis-network
+  nginx:
+    container_name: nginx-container
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "8000:8000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app-1
+      - app-2
+    networks:
+      - redis-network
